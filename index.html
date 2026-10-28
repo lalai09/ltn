@@ -535,6 +535,36 @@ textarea{padding:16px 18px;border-radius:14px;font-size:13px;line-height:1.85}
 #s1.loaded aside,#s1.answers aside{width:100%;max-width:520px;margin:0 auto}
 @media(max-width:720px){.pick-row{grid-template-columns:1fr}.page-heading h1{font-size:24px}}
 
+/* ===== Màn hình làm bài: một trang tĩnh, nút cố định ===== */
+.nav-btn{display:flex;align-items:center;gap:8px;padding:9px 14px;border:0;border-radius:12px;background:var(--primary-soft);color:var(--primary);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+.nav-btn svg{width:18px;height:18px}
+body.exam{overflow:hidden}
+body.exam main{max-width:760px;height:calc(100dvh - 68px);margin:0 auto;padding:14px 16px}
+body.exam footer{display:none}
+#s2{height:100%;display:flex;flex-direction:column}
+#s2 .page-heading{display:none}
+#s2 .exam-layout{display:block;flex:1;min-height:0}
+#s2 .exam-layout>.card-pad{height:100%;display:flex;flex-direction:column;padding:18px 20px}
+#s2 .question-content{flex:1;min-height:0;overflow-y:auto;padding-top:18px}
+#s2 .question-help{margin:6px 0 14px}
+#s2 .opt{padding:12px 14px;margin-bottom:8px}
+#s2 .question-nav{margin-top:10px;padding-top:14px}
+#s2 .navigator{display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:400px;max-height:82dvh;overflow:auto;z-index:40;box-shadow:0 20px 60px rgba(34,36,60,.28)}
+#s2.nav-open .navigator{display:block}
+#s2 .grid{grid-template-columns:repeat(5,1fr)}
+.nav-backdrop{display:none;position:fixed;inset:0;background:rgba(34,36,60,.4);z-index:30}
+#s2.nav-open .nav-backdrop{display:block}
+.nav-head{display:flex;justify-content:space-between;align-items:center}
+.nav-close{border:0;background:#f5f6fa;color:var(--muted);width:30px;height:30px;border-radius:9px;font-size:13px}
+
+.feedback{flex-shrink:0;margin-top:10px;padding:10px 14px;border-radius:12px;font-size:12.5px;font-weight:600}
+.feedback.ok{background:var(--green-soft);color:var(--green)}
+.feedback.bad{background:var(--red-soft);color:var(--red)}
+button.opt.wrong:hover{background:var(--red-soft);border-color:#f3aaba}
+button.opt.right:hover{background:var(--green-soft);border-color:#94d6bf}
+.opt:disabled{opacity:.55;cursor:default}
+.opt.wrong:disabled,.opt.right:disabled{opacity:1}
+
 @media(min-width:1500px){main{margin-top:52px}}
 @media(max-width:900px){
   .setup-layout{grid-template-columns:minmax(0,1fr) 280px;gap:18px}
@@ -581,6 +611,9 @@ textarea{padding:16px 18px;border-radius:14px;font-size:13px;line-height:1.85}
     </div>
     <div class="header-right">
       <div class="header-tag"><span class="live-dot"></span> Học một chút, tiến xa hơn</div>
+      <button type="button" class="nav-btn hide" id="navBtn" aria-haspopup="dialog" aria-label="Xem tiến độ làm bài">
+        <span data-icon="grid"></span><span id="navCount">0/0</span>
+      </button>
       <div id="timer" class="hide" role="timer">
         <span data-icon="clock"></span>
         <span id="timerText">30:00</span>
@@ -701,6 +734,17 @@ D. TP. Hồ Chí Minh
             </span>
           </label>
 
+          <label class="toggle-row" for="instant">
+            <div class="toggle-copy">
+              <strong>Kiểm tra từng câu</strong>
+              <span>Bấm Kiểm tra để biết đúng sai</span>
+            </div>
+            <span class="switch">
+              <input type="checkbox" id="instant">
+              <span class="switch-track"></span>
+            </span>
+          </label>
+
           <button class="btn btn-primary btn-wide" id="start" disabled>
             Bắt đầu làm bài <span data-icon="arrowRight"></span>
           </button>
@@ -726,6 +770,7 @@ D. TP. Hồ Chí Minh
       <p>Đọc kỹ câu hỏi và chọn đáp án bạn cho là chính xác nhất.</p>
     </div>
 
+    <div class="nav-backdrop" id="navBackdrop"></div>
     <div class="exam-layout">
       <div class="card card-pad">
         <div class="exam-topline">
@@ -742,6 +787,8 @@ D. TP. Hồ Chí Minh
           <div id="opts" role="group" aria-label="Các lựa chọn"></div>
         </div>
 
+        <div class="feedback hide" id="feedback" role="status" aria-live="polite"></div>
+
         <div class="question-nav">
           <button class="btn" id="prev">
             <span data-icon="arrowLeft"></span> Câu trước
@@ -753,7 +800,7 @@ D. TP. Hồ Chí Minh
       </div>
 
       <aside class="card navigator">
-        <h2>Tiến độ làm bài</h2>
+        <div class="nav-head"><h2>Tiến độ làm bài</h2><button type="button" class="nav-close" id="navClose" aria-label="Đóng">✕</button></div>
         <p class="muted" id="prog"></p>
         <div class="grid" id="grid"></div>
 
@@ -840,16 +887,20 @@ const ICONS = {
   check:'<path d="m5 12 4 4L19 6"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   refresh:'<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 18 17"/>',
+  grid:'<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>',
   award:'<circle cx="12" cy="8" r="5"/><path d="m8.5 12-1 9 4.5-3 4.5 3-1-9"/><path d="m10 8 1.5 1.5L14 7"/>'
 };
 
-document.querySelectorAll("[data-icon]").forEach(el => {
-  el.innerHTML = `<svg viewBox="0 0 24 24" fill="none"
+const svgOf = name => `<svg viewBox="0 0 24 24" fill="none"
     stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-    stroke-linejoin="round" aria-hidden="true">${ICONS[el.dataset.icon] || ""}</svg>`;
+    stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ""}</svg>`;
+
+document.querySelectorAll("[data-icon]").forEach(el => {
+  el.innerHTML = svgOf(el.dataset.icon);
 });
 
 let BANK = [], Q = [], ans = [], cur = 0;
+let wrongPicks = [], solved = [], tries = [], instantMode = false, advTimer = null, advancing = false;
 let tick = null, left = 0, deadline = 0, done = false, loadVersion = 0;
 
 const SAMPLE = `Câu 1: Thủ đô của Việt Nam là gì?
@@ -1328,6 +1379,9 @@ function show(id) {
   ["s1", "s2", "s3"].forEach(name => {
     $("#" + name).classList.toggle("hide", name !== id);
   });
+  document.body.classList.toggle("exam", id === "s2");
+  $("#s2").classList.remove("nav-open");
+  $("#navBtn").classList.toggle("hide", id !== "s2");
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
@@ -1359,6 +1413,12 @@ function start() {
   if ($("#shq").checked) shuffle(Q);
 
   ans = Q.map(() => -1);
+  wrongPicks = Q.map(() => new Set());
+  solved = Q.map(() => false);
+  tries = Q.map(() => 0);
+  instantMode = $("#instant").checked;
+  clearTimeout(advTimer);
+  advancing = false;
   cur = 0;
   done = false;
 
@@ -1423,6 +1483,7 @@ function render() {
 
   const q = Q[cur];
   const answered = ans.filter(a => a >= 0).length;
+  const inst = instantMode && q.has;
 
   $("#qno").textContent = `Câu ${String(cur + 1).padStart(2, "0")} / ${String(Q.length).padStart(2, "0")}`;
   $("#qtext").textContent = q.q;
@@ -1430,17 +1491,29 @@ function render() {
   $("#opts").replaceChildren();
 
   q.o.forEach((option, index) => {
-    const selected = ans[cur] === index;
-    const content = makeOption(option, index, "", selected ? "✓" : "");
+    const locked = inst && (solved[cur] || wrongPicks[cur].has(index));
+    let cls = ans[cur] === index ? " sel" : "", mark = ans[cur] === index ? "✓" : "";
+
+    if (inst) {
+      if (solved[cur] && option.ok) { cls = " right"; mark = "✓"; }
+      else if (wrongPicks[cur].has(index)) { cls = " wrong"; mark = "✗"; }
+      else if (solved[cur]) { cls = ""; mark = ""; }
+    }
+
+    const content = makeOption(option, index, "", mark);
     const button = document.createElement("button");
 
     button.type = "button";
-    button.className = "opt" + (selected ? " sel" : "");
-    button.setAttribute("aria-pressed", String(selected));
+    button.className = "opt" + cls;
+    button.disabled = locked;
+    button.setAttribute("aria-pressed", String(ans[cur] === index));
     button.append(...content.childNodes);
 
     button.onclick = () => {
       if (done) return;
+
+      if (inst && (solved[cur] || wrongPicks[cur].has(index))) return;
+
       ans[cur] = ans[cur] === index ? -1 : index;
       render();
       $("#opts").children[index]?.focus({ preventScroll: true });
@@ -1449,8 +1522,28 @@ function render() {
     $("#opts").appendChild(button);
   });
 
+  const fb = $("#feedback");
+  if (inst && solved[cur]) {
+    fb.className = "feedback ok";
+    fb.textContent = "✓ Chính xác!" + (cur === Q.length - 1
+      ? " Bấm Nộp bài khi hoàn thành."
+      : " Bấm Câu tiếp theo để tiếp tục.");
+  } else if (inst && wrongPicks[cur].size) {
+    fb.className = "feedback bad";
+    fb.textContent = "✗ Chưa đúng, hãy chọn đáp án khác.";
+  } else {
+    fb.className = "feedback hide";
+  }
+
   $("#prev").disabled = cur === 0;
-  $("#next").disabled = cur === Q.length - 1;
+  const needCheck = inst && !solved[cur];
+  $("#next").innerHTML = needCheck
+    ? `Kiểm tra ${svgOf("check")}`
+    : cur === Q.length - 1
+      ? `Nộp bài ${svgOf("check")}`
+      : `Câu tiếp theo ${svgOf("arrowRight")}`;
+  $("#next").disabled = needCheck && ans[cur] < 0;
+  $("#navCount").textContent = `${answered}/${Q.length}`;
   $("#grid").replaceChildren();
 
   Q.forEach((_, index) => {
@@ -1466,14 +1559,21 @@ function render() {
     if (index === cur) button.setAttribute("aria-current", "step");
 
     button.onclick = () => {
-      cur = index;
-      render();
+      $("#s2").classList.remove("nav-open");
+      go(index);
     };
 
     $("#grid").appendChild(button);
   });
 
   $("#prog").textContent = `Bạn đã trả lời ${answered} / ${Q.length} câu`;
+}
+
+function go(i) {
+  clearTimeout(advTimer);
+  advancing = false;
+  cur = i;
+  render();
 }
 
 function finish(auto = false) {
@@ -1495,6 +1595,7 @@ function finish(auto = false) {
   }
 
   done = true;
+  clearTimeout(advTimer);
   clearInterval(tick);
   $("#timer").classList.add("hide");
 
@@ -1502,7 +1603,7 @@ function finish(auto = false) {
   let right = 0;
 
   Q.forEach((q, index) => {
-    if (q.has && ans[index] >= 0 && q.o[ans[index]].ok) right++;
+    if (q.has && ans[index] >= 0 && q.o[ans[index]].ok && (!instantMode || tries[index] === 0)) right++;
   });
 
   const score = scored ? right / scored * 10 : 0;
@@ -1521,6 +1622,10 @@ function finish(auto = false) {
     ? `Đúng ${right} / ${scored} câu được chấm điểm.`
     : "Đề chưa có đáp án đúng nên chưa thể tính điểm.";
 
+  if (instantMode && scored) {
+    $("#detail").textContent += " Ở chế độ kiểm tra từng câu, chỉ câu chọn đúng ngay lần đầu mới được tính điểm.";
+  }
+
   $("#resultSubtitle").textContent = auto
     ? "Đã hết thời gian. Bài làm của bạn được nộp tự động."
     : "Mỗi lần luyện tập là một lần tiến bộ.";
@@ -1529,6 +1634,7 @@ function finish(auto = false) {
 
   Q.forEach((q, index) => {
     const correct = q.has && ans[index] >= 0 && q.o[ans[index]].ok;
+    const retried = correct && instantMode && tries[index] > 0;
     const card = document.createElement("article");
     card.className = "card review-card";
 
@@ -1541,12 +1647,13 @@ function finish(auto = false) {
 
     const badge = document.createElement("span");
     badge.className = "review-badge " +
-      (!q.has ? "neutral" : correct ? "good" : "bad");
+      (!q.has ? "neutral" : correct && !retried ? "good" : "bad");
 
     badge.textContent = !q.has
       ? (ans[index] < 0 ? "Chưa làm · không chấm điểm" : "Không chấm điểm")
+      : retried ? "Đúng sau khi chọn lại"
       : correct ? "✓ Chính xác"
-      : ans[index] < 0 ? "Chưa trả lời" : "Chưa chính xác";
+      : ans[index] < 0 && !(instantMode && tries[index] > 0) ? "Chưa trả lời" : "Chưa chính xác";
 
     head.append(number, badge);
 
@@ -1558,11 +1665,12 @@ function finish(auto = false) {
 
     q.o.forEach((option, optionIndex) => {
       const selected = ans[index] === optionIndex;
+      const tried = selected || (instantMode && wrongPicks[index].has(optionIndex));
       const state = option.ok
         ? "right"
-        : selected ? (q.has ? "wrong" : "sel") : "";
+        : tried ? (q.has ? "wrong" : "sel") : "";
 
-      const mark = option.ok ? "✓" : selected ? "•" : "";
+      const mark = option.ok ? "✓" : tried ? "•" : "";
       const optEl = makeOption(option, optionIndex, state, mark);
 
       optEl.setAttribute("aria-label",
@@ -1619,11 +1727,33 @@ $("#sample").onclick = () => {
 
 $("#start").onclick = () => start();
 $("#prev").onclick = () => {
-  if (cur > 0) { cur--; render(); }
+  if (cur > 0) go(cur - 1);
 };
+function checkAnswer() {
+  const q = Q[cur], i = ans[cur];
+  if (done || !q.has || i < 0 || solved[cur]) return;
+
+  if (q.o[i].ok) {
+    solved[cur] = true;
+  } else {
+    wrongPicks[cur].add(i);
+    tries[cur]++;
+    ans[cur] = -1;
+  }
+  render();
+}
+
 $("#next").onclick = () => {
-  if (cur < Q.length - 1) { cur++; render(); }
+  if (instantMode && Q[cur].has && !solved[cur]) checkAnswer();
+  else if (cur < Q.length - 1) go(cur + 1);
+  else finish(false);
 };
+
+const toggleNav = open => $("#s2").classList.toggle("nav-open", open);
+$("#navBtn").onclick = () => toggleNav();
+$("#navBackdrop").onclick = () => toggleNav(false);
+$("#navClose").onclick = () => toggleNav(false);
+document.addEventListener("keydown", e => { if (e.key === "Escape") toggleNav(false); });
 $("#submit").onclick = () => finish(false);
 $("#again").onclick = () => start();
 $("#home").onclick = () => {
