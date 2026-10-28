@@ -658,6 +658,7 @@ button.opt.right:hover{background:var(--green-soft);border-color:#94d6bf}
           <button type="button" class="text-btn reload" id="reload">← Chọn file khác</button>
           <button type="button" class="btn" id="editBtn">✎ Sửa nội dung đề</button>
           <button type="button" class="btn hide" id="saveBtn">💾 Lưu kèm đáp án</button>
+          <button type="button" class="btn hide" id="codeBtn">☁ Lưu đề có mã 4 số</button>
         </div>
         <button type="button" class="issue-btn hide" id="issueBtn"></button>
         <div id="issuePanel" class="diag hide"></div>
@@ -1181,6 +1182,7 @@ $("#saveBtn").onclick = saveQuiz;
 
 function renderAnswerBtn() {
   $("#saveBtn").classList.toggle("hide", !BANK.length || !!ISSUES.length);
+  $("#codeBtn").classList.toggle("hide", !BANK.length || !!ISSUES.length);
   const btn = $("#answerBtn"), n = BANK.filter(i => i.manual).length;
   if (ISSUES.length || !n) { btn.classList.add("hide"); return; }
   btn.classList.remove("hide");
@@ -1770,6 +1772,35 @@ document.addEventListener("visibilitychange", () => {
 
 
 check();
+
+// ===== Lưu đề lên Firebase với mã 4 số =====
+const FB_DB = "https://code-9b836-default-rtdb.asia-southeast1.firebasedatabase.app";
+async function saveWithCode() {
+  if (!BANK.length || ISSUES.length) return alert("Hãy sửa hết lỗi định dạng trước khi lưu.");
+  const title = prompt("Tên đề (không bắt buộc):", loadedName);
+  if (title === null) return;
+  const mins = Number($("#mins").value) || 0;
+  const questions = BANK.map(i => ({ q: i.q, o: i.o, a: i.a }));
+  const btn = $("#codeBtn");
+  btn.disabled = true;
+  try {
+    for (let n = 0; n < 15; n++) {
+      const code = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+      const url = `${FB_DB}/quizzes/${code}.json`;
+      const r0 = await fetch(url);
+      if (!r0.ok) throw new Error("Không đọc được dữ liệu. Hãy kiểm tra Security Rules của Firebase và mở file trên host của bạn.");
+      if (await r0.json()) continue;
+      const res = await fetch(url, { method: "PUT", body: JSON.stringify({ title: title.trim(), minutes: mins, questions, created: Date.now() }) });
+      if (!res.ok) throw new Error("Không ghi được dữ liệu. Hãy kiểm tra Security Rules.");
+      prompt("Đã lưu! Mã đề của bạn là (copy để chia sẻ):", code);
+      return;
+    }
+    alert("Không tìm được mã trống, vui lòng thử lại.");
+  } catch (e) {
+    alert(e.message || "Lỗi kết nối.");
+  } finally { btn.disabled = false; }
+}
+$("#codeBtn").onclick = saveWithCode;
 </script>
 </body>
 </html>
